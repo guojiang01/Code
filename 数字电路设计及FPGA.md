@@ -395,5 +395,149 @@
 
 ---
 
-___
++++
+
+## 高级FPGA设计：结构、实现和优化
+
+1. 采用任意编码方式时，高级工具的优化程度常常不足以满足大多数设计约束的要求。本节主要讨论数字设计中三个主要物理特性的第一个：**速度**。
+   + 速度有三种基本定义：**流量**、**时滞**和**时序**
+     + **流量**定义为每个时钟周期处理的数据
+     + **时滞**的一般度量是时间或时钟周期
+     + **时序**定义为时序元件之间的逻辑延时，当一个设计没有“满足时序”时，意味着关键路径的延时，即触发器之间的最大延时比预定的时钟周期大，这些延时由组合逻辑延时、时钟到输出延时、布线延时、建立时间、时钟偏移等组成。时序的标准度量是时钟周期和频率
+
+```verilog
+//按照软件形式展开，递归
+module a(
+			output [7:0] XPower,
+			output finished,
+			input  [7:0] X,
+			input  clk,start);
+    
+			reg [7:0] ncount;
+			reg [7:0] XPower;
+			
+			assign finished = (ncount == 0);
+			
+			always @ (posedge clk)
+			if(start) begin
+				XPower <= X;
+				ncount <= 2;
+			end
+			else if(!finished) begin
+				ncount <= ncount - 1;
+				XPower <= XPower * X;
+			end
+endmodule
+//将上述改成流水线结构
+module a(
+			output reg [7:0] XPower,
+			input clk,
+			input [7:0] X);
+			
+			reg [7:0] XPower1,XPower2;
+			reg [7:0] X1,X2;
+			
+			always @(posedge clk) 
+			begin
+				X1 <= X;
+				XPower1 <= X;
+				
+				X2 <= X1;
+				XPower2 <= XPower1 * X1;
+				XPower <= XPower2 * X2;
+			end
+endmodule
+//除去上述的流水线寄存器，使输入到输出的时序最小化
+module a(
+			output [7:0] XPower,
+			input [7:0] X);
+			
+			reg [7:0] XPower1,XPower2;
+			reg [7:0] X1,X2;
+			
+			assign XPower = XPower2 * X2;
+			
+			always @ * 
+				begin
+					X1 = X;
+					XPower1 = X;
+				end
+			
+			always @ *
+				begin
+					X2 = X1;
+					XPower2 = XPower1 * X1;
+				end
+endmodule
+```
+
+2. **时序**：指的是一个设计的时钟速度。在设计中任何两个时序元件之间的最大延时将决定最大的时钟速度。时钟速度的概念比速度/面积权衡有更低层次的抽象，因为时钟速递一般不直接与这些拓扑有关，虽然在这些结构中的权衡将确实对时序有影响
+
+   + 最高速度或最大频率可以直接按照著名的最大频率方程定义（不管时钟到时钟的抖动）：
+
+     $F_{max}=\frac{1}{T_{clk-q}+T_{logic}+T_{routing}+T_{setup}-T_{skew}}$
+
+     其中$F_{max}$是时钟可允许的最大频率，$T_{clk-q}$是时钟到达直至数据到达$Q$端的时间，$T_{logic}$是逻辑通过触发器之间的传播延时，$T_{routing}$是触发器之间的布线延时，$T_{setup}$是下一个时钟上升沿之前数据必须到达$D$端的最小时间(建立时间)，$T_{skew}$是启动触发器和捕捉触发器之间时钟的传播延时。
+
+   + 一个乘法器和一个加法器组成的关键路径比最小时钟周期的要求大你，假设时滞要求不固定在一个时钟周期，添加额外的中间寄存器到此乘法器，使设计进一步流水线。
+
+     ```verilog
+     module a(
+     			output [7:0] Y,
+     			input [7:0] A,B,C,X,
+     			input clk,
+     			input validsample);
+     			
+     			reg [7:0] X1,X2,Y;
+     			
+     			always @ (posedge clk)
+     				if(validsample)
+     					begin
+     						X1 <= X;
+     						X2 <= X1;
+     						Y <= A * X + B * X1 + C * X2;
+     					end
+     endmodule
+     //假设上述FIR实现的结构不满足时序要求，则在乘法器和加法器之间添加一个流水线层次
+     module a(
+     			output [7:0] Y,
+     			input [7:0] A,B,C,X,
+     			input clk,
+     			input validsample);
+     			
+     			reg [7:0] X1,X2,Y;
+     			reg [7:0] pord1,pord2,pord3;
+     			
+     			always @ (posedge clk)
+     				begin
+     					if(validsample)
+     						begin
+     							X1 <= X;
+     							X2 <= X1;
+     							pord1 <= A * X;
+     							pord2 <= B * X1;
+     							pord3 <= C * X2;
+     						end
+     					Y <= pord1 + pord2 + pord3;
+     				end 
+     endmodule
+     
+     ```
+
+     对于流水线乘法器是好的选择，因为计算 可以很容易分解成级。把乘法器和加法器分解成可以单独寄存的级，使附加流水线成为可能。
+
+     **把关键路径分成两个更小延时的路径，添加寄存器层次改进时序**
+
+   + 并行结构
+
+     **把一个逻辑功能分成大量可以并行估计的更小的功能，减少路径延时为子结构的最长延时**
+
+   + 展平逻辑结构
+
+     **去除不需要的特权编码，展平逻辑结构，减少路径延时**
+
+   + 寄存器平衡：平等地重新分布急窜起之间的逻辑，减少任何两个寄存器之间最坏条件的延时。
+   + 重新安排路径：可以重新安排与关键路径组合的路径来改善时序，方法是关键路径的一些逻辑放置到接近目的寄存器
+
+3. **面积** p23
 
