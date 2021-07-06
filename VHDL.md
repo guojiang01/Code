@@ -106,3 +106,54 @@ VARIABLE name : type[range] [ := 初始值]；  --变量 局部
 | 范围     | 全局                                                         | 局部                 |
 | 行为     | 在顺序代码中，信号值的更新不是即时的，新的值要在进程、函数或过程完成以后才有效 | 即时更新             |
 | 用途     | 用于包集、实体或结构体中。在实体中，所用端口默认为信号       | 仅用于顺序描述代码中 |
+
+### VHDL 可综合类型
+
+| 类                       | 可综合 | 类               | 可综合 |
+| ------------------------ | ------ | ---------------- | ------ |
+| enmueration(枚举)类型    | 是     | array(数组)      | 是     |
+| integer(整数)类型        | 是     | record(记录)数组 | 是     |
+| floating-point(浮点)类型 | 否     | access(存取)类型 | 否     |
+| physical(物理)类型       | 否     | file(文件)类型   | 否     |
+
+### VHDL 标准类型
+
+| 类型                     | 类                       | 可综合 |
+| ------------------------ | ------------------------ | ------ |
+| boolean(布尔)            | enumeration(枚举)类型    | 是     |
+| bit(位)                  | enumeration(枚举)类型    | 是     |
+| character(字符)          | enumeration(枚举)类型    | 是     |
+| severity_level(错误等级) | enumeration(枚举)类型    | 否     |
+| integer(整数)            | integer(整数)类型        | 是     |
+| natural(自然数)          | integer(整数)的子类型    | 是     |
+| positive(正整数)         | integer(整数)的子类型    | 是     |
+| real(实数)               | floating-point(浮点)类型 | 否     |
+| time(时间)               | physical(物理)类型       | 否     |
+| string(字符串)           | 字符数组                 | 是     |
+| bit_vector(位矢量)       | 位数组                   | 是     |
+
+### 标准操作符
+
++ 布尔： not, and, or, nand, nor, xor, xnor;
++ 比较 ： =，/=，<，<=，>，>=；
++ 位移：sll, srl, sla, sra, rol, ror;
++ 算数：符号+，符号-，abs，+，-， \*，/，mod，rem，**；
++ 拼接： &；
+
+### 时序VHDL
+
+VHDL 包括两个编程域：并发域和时序域
+
+进程基本结构：
+
+```vhdl
+process senitivity list
+	declaration part
+begin
+	statment part
+end process
+```
+
++ 只有进程(process)才能为寄存器建模，而子程序不能描述进程，因为子程序只有顺序执行的语句，所以子程序只能描述组合逻辑（子程序与进程完全不同，进程能描述时序逻辑，而子程序只能描述组合逻辑），因此，子程序通常仅限于小的不可分割的操作。
++ 函数其实就是可在表达式中调用的子程序。
+
