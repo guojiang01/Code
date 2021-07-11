@@ -77,3 +77,5 @@
    | 18   | SDA               | SDA              |
    | 19   | +5V Power         | +5V Power        |
 
+3. 差分数据线特征阻抗100$\Omega$ .
+
